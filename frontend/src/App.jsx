@@ -1,16 +1,12 @@
-import React from 'react';
-
-
-
-
+import React from "react";
+import Home from "./components/Home";
+import { WavyBackground } from "./components/ui/wavy-background";
 
 function App() {
   return (
-   <div>
-   <h1 className='text-red-500
-   '>Sexxxxxx
-    </h1> 
-   </div>
+    <WavyBackground className="h-screen w-full flex items-center justify-center">
+      <Home />
+    </WavyBackground>
   );
 }
 
