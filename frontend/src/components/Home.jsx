@@ -1,12 +1,11 @@
 import React, { useState } from "react";
 import { WavyBackground } from "./ui/wavy-background";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 
 const Home = () => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
-  const [botResponse, setBotResponse] = useState(null);
-  const [tableData, setTableData] = useState(null);
+  const [expandedIndexes, setExpandedIndexes] = useState({});
 
   const fetchBotResponse = async (question) => {
     try {
@@ -21,30 +20,34 @@ const Home = () => {
       const data = await response.json();
       console.log("Raw API Response:", data);
 
-      if (data && Object.keys(data).length > 0) {
-        setTableData(data);
-        setBotResponse(null);
-      } else {
-        setTableData(null);
-        setBotResponse("No data available.");
-      }
+      return data && Object.keys(data).length > 0 ? data : "No data available.";
     } catch (error) {
       console.error("Error fetching AI response:", error);
-      setTableData(null);
-      setBotResponse("An error occurred while fetching the response.");
+      return "An error occurred while fetching the response.";
     }
   };
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
-    setMessages((prev) => [...prev, { text: input, sender: "user" }]);
-    await fetchBotResponse(input);
+    const newMessage = { text: input, sender: "user" };
+    setMessages((prev) => [...prev, newMessage]);
+
+    const botReply = await fetchBotResponse(input);
+
+    const newBotResponse = { text: botReply, sender: "bot" };
+    setMessages((prev) => [...prev, newBotResponse]);
 
     setInput("");
   };
 
-  // Function to format numeric values
+  const toggleDropdown = (index) => {
+    setExpandedIndexes((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
+  };
+
   const formatValue = (value) => {
     if (typeof value === "number") {
       return value.toLocaleString(undefined, {
@@ -54,9 +57,6 @@ const Home = () => {
     }
     return value;
   };
-
-  // Dynamic table width calculation
-  const tableWidth = tableData ? Math.min(100, Object.keys(tableData).length * 15) : 0;
 
   return (
     <div className="relative z-30 container flex flex-col h-screen bg-transparent text-white p-5">
@@ -72,54 +72,87 @@ const Home = () => {
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
         {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`p-3 max-w-[70%] rounded-lg break-words animate-fade-in ${
-              msg.sender === "user"
-                ? "bg-blue-500 self-end text-white shadow-lg"
-                : "bg-gray-700 self-start text-white shadow-lg"
-            }`}
-          >
-            {msg.text}
+          <div key={index} className="flex flex-col gap-1">
+            {msg.sender === "user" && (
+              <div className="p-3 max-w-[70%] rounded-lg break-words animate-fade-in bg-blue-500 self-end text-white shadow-lg">
+                {msg.text}
+              </div>
+            )}
+
+            {msg.sender === "bot" && typeof msg.text === "object" ? (
+              index === messages.length - 1 ? (
+                <div className="overflow-x-auto border border-gray-500 rounded-lg inline-block">
+                  <table className="bg-black bg-opacity-20 rounded-lg border-collapse">
+                    <thead>
+                      <tr className="bg-red-500">
+                        {Object.keys(msg.text).map((column) => (
+                          <th key={column} className="p-3 text-left border border-gray-500 whitespace-nowrap">
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(msg.text[Object.keys(msg.text)[0]]).map((rowIndex) => (
+                        <tr key={rowIndex}>
+                          {Object.keys(msg.text).map((column) => (
+                            <td key={column} className="p-3 text-left border border-gray-500 whitespace-nowrap">
+                              {formatValue(msg.text[column][rowIndex])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <button
+                    className="flex items-center justify-between w-64 px-4 py-2 bg-gray-700 rounded-lg shadow-md text-left text-white hover:bg-gray-600"
+                    onClick={() => toggleDropdown(index)}
+                  >
+                    View Data for "{messages[index - 1]?.text}"
+                    {expandedIndexes[index] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+
+                  {expandedIndexes[index] && (
+                    <div className="overflow-x-auto border border-gray-500 rounded-lg inline-block">
+                      <table className="bg-black bg-opacity-20 rounded-lg border-collapse">
+                        <thead>
+                          <tr className="bg-red-500">
+                            {Object.keys(msg.text).map((column) => (
+                              <th key={column} className="p-3 text-left border border-gray-500 whitespace-nowrap">
+                                {column}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.keys(msg.text[Object.keys(msg.text)[0]]).map((rowIndex) => (
+                            <tr key={rowIndex}>
+                              {Object.keys(msg.text).map((column) => (
+                                <td key={column} className="p-3 text-left border border-gray-500 whitespace-nowrap">
+                                  {formatValue(msg.text[column][rowIndex])}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )
+            ) : (
+              msg.sender === "bot" && (
+                <div className="p-3 bg-gray-700 rounded-lg mt-2">
+                  <strong>Bot:</strong> {msg.text}
+                </div>
+              )
+            )}
           </div>
         ))}
       </div>
-
-      {botResponse && (
-        <div className="p-3 bg-gray-700 rounded-lg mt-2">
-          <strong>Bot:</strong> {botResponse}
-        </div>
-      )}
-
-      {tableData && typeof tableData === "object" && Object.keys(tableData).length > 0 && (
-        <div
-          className="max-h-72 overflow-y-auto border border-gray-500 rounded-lg mt-3 mx-auto transition-all duration-300"
-          style={{ width: `${tableWidth}%`, minWidth: "300px" }}
-        >
-          <table className="w-full border-collapse bg-black bg-opacity-20 rounded-lg">
-            <thead>
-              <tr className="bg-red-500">
-                {Object.keys(tableData).map((column) => (
-                  <th key={column} className="border border-gray-500 p-2">
-                    {column}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Object.keys(tableData[Object.keys(tableData)[0]]).map((rowIndex) => (
-                <tr key={rowIndex}>
-                  {Object.keys(tableData).map((column) => (
-                    <td key={column} className="border border-gray-500 p-2 text-center">
-                      {formatValue(tableData[column][rowIndex])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       <div className="flex items-center p-3 bg-gray-800 bg-opacity-50 rounded-lg mt-3">
         <input
