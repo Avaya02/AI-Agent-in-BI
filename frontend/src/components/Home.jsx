@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { WavyBackground } from "./ui/wavy-background";
-import { Sparkles } from 'lucide-react';
+import { Sparkles } from "lucide-react";
 
 const Home = () => {
   const [input, setInput] = useState("");
@@ -21,22 +21,12 @@ const Home = () => {
       const data = await response.json();
       console.log("Raw API Response:", data);
 
-      if (data.Table) {
-        try {
-          const parsedTable = JSON.parse(data.Table);
-          if (Object.keys(parsedTable).length > 0 && Object.values(parsedTable)[0]) {
-            setTableData(parsedTable);
-            setBotResponse(null);
-          } else {
-            setTableData(null);
-            setBotResponse("No data available.");
-          }
-        } catch (error) {
-          console.error("Error parsing table data:", error);
-          setTableData(null);
-        }
+      if (data && Object.keys(data).length > 0) {
+        setTableData(data);
+        setBotResponse(null);
       } else {
         setTableData(null);
+        setBotResponse("No data available.");
       }
     } catch (error) {
       console.error("Error fetching AI response:", error);
@@ -49,14 +39,24 @@ const Home = () => {
     if (!input.trim()) return;
 
     setMessages((prev) => [...prev, { text: input, sender: "user" }]);
-    const botReply = await fetchBotResponse(input);
-
-    if (botReply) {
-      setMessages((prev) => [...prev, { text: botReply, sender: "bot" }]);
-    }
+    await fetchBotResponse(input);
 
     setInput("");
   };
+
+  // Function to format numeric values
+  const formatValue = (value) => {
+    if (typeof value === "number") {
+      return value.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+    return value;
+  };
+
+  // Dynamic table width calculation
+  const tableWidth = tableData ? Math.min(100, Object.keys(tableData).length * 15) : 0;
 
   return (
     <div className="relative z-30 container flex flex-col h-screen bg-transparent text-white p-5">
@@ -75,7 +75,9 @@ const Home = () => {
           <div
             key={index}
             className={`p-3 max-w-[70%] rounded-lg break-words animate-fade-in ${
-              msg.sender === "user" ? "bg-blue-500 self-end text-white shadow-lg" : "bg-gray-700 self-start text-white shadow-lg"
+              msg.sender === "user"
+                ? "bg-blue-500 self-end text-white shadow-lg"
+                : "bg-gray-700 self-start text-white shadow-lg"
             }`}
           >
             {msg.text}
@@ -90,7 +92,10 @@ const Home = () => {
       )}
 
       {tableData && typeof tableData === "object" && Object.keys(tableData).length > 0 && (
-        <div className="max-h-72 overflow-y-auto border border-gray-500 rounded-lg mt-3">
+        <div
+          className="max-h-72 overflow-y-auto border border-gray-500 rounded-lg mt-3 mx-auto transition-all duration-300"
+          style={{ width: `${tableWidth}%`, minWidth: "300px" }}
+        >
           <table className="w-full border-collapse bg-black bg-opacity-20 rounded-lg">
             <thead>
               <tr className="bg-red-500">
@@ -105,8 +110,8 @@ const Home = () => {
               {Object.keys(tableData[Object.keys(tableData)[0]]).map((rowIndex) => (
                 <tr key={rowIndex}>
                   {Object.keys(tableData).map((column) => (
-                    <td key={column} className="border border-gray-500 p-2">
-                      {tableData[column][rowIndex] ?? "-"}
+                    <td key={column} className="border border-gray-500 p-2 text-center">
+                      {formatValue(tableData[column][rowIndex])}
                     </td>
                   ))}
                 </tr>
