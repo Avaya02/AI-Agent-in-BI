@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { WavyBackground } from "./ui/wavy-background";
-import { Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 const Home = () => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
-  const [expandedIndexes, setExpandedIndexes] = useState({});
+  const [insights, setInsights] = useState(null);
+  const [showDialog, setShowDialog] = useState(false);
 
   const fetchBotResponse = async (question) => {
     try {
@@ -35,27 +36,27 @@ const Home = () => {
 
     const botReply = await fetchBotResponse(input);
 
+    // Check for irrelevant responses
+    if (
+      botReply === "No data available." ||
+      (typeof botReply === "object" &&
+        botReply.text &&
+        botReply.text.includes("Please enter a valid message"))
+    ) {
+      setShowDialog(true); // Show dialog for invalid input
+      setInput("");
+      return; // Stop further execution
+    }
+
     const newBotResponse = { text: botReply, sender: "bot" };
     setMessages((prev) => [...prev, newBotResponse]);
 
-    setInput("");
-  };
-
-  const toggleDropdown = (index) => {
-    setExpandedIndexes((prev) => ({
-      ...prev,
-      [index]: !prev[index],
-    }));
-  };
-
-  const formatValue = (value) => {
-    if (typeof value === "number") {
-      return value.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+    // Call Insights API only when valid structured data is received
+    if (typeof botReply === "object") {
+      await fetchInsights(botReply);
     }
-    return value;
+
+    setInput("");
   };
 
   return (
@@ -80,7 +81,7 @@ const Home = () => {
             )}
 
             {msg.sender === "bot" && typeof msg.text === "object" ? (
-              index === messages.length - 1 ? (
+              <div>
                 <div className="overflow-x-auto border border-gray-500 rounded-lg inline-block">
                   <table className="bg-black bg-opacity-20 rounded-lg border-collapse">
                     <thead>
@@ -97,7 +98,7 @@ const Home = () => {
                         <tr key={rowIndex}>
                           {Object.keys(msg.text).map((column) => (
                             <td key={column} className="p-3 text-left border border-gray-500 whitespace-nowrap">
-                              {formatValue(msg.text[column][rowIndex])}
+                              {msg.text[column][rowIndex]}
                             </td>
                           ))}
                         </tr>
@@ -105,44 +106,13 @@ const Home = () => {
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <div className="flex flex-col">
-                  <button
-                    className="flex items-center justify-between w-64 px-4 py-2 bg-gray-700 rounded-lg shadow-md text-left text-white hover:bg-gray-600"
-                    onClick={() => toggleDropdown(index)}
-                  >
-                    View Data for "{messages[index - 1]?.text}"
-                    {expandedIndexes[index] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-
-                  {expandedIndexes[index] && (
-                    <div className="overflow-x-auto border border-gray-500 rounded-lg inline-block">
-                      <table className="bg-black bg-opacity-20 rounded-lg border-collapse">
-                        <thead>
-                          <tr className="bg-red-500">
-                            {Object.keys(msg.text).map((column) => (
-                              <th key={column} className="p-3 text-left border border-gray-500 whitespace-nowrap">
-                                {column}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Object.keys(msg.text[Object.keys(msg.text)[0]]).map((rowIndex) => (
-                            <tr key={rowIndex}>
-                              {Object.keys(msg.text).map((column) => (
-                                <td key={column} className="p-3 text-left border border-gray-500 whitespace-nowrap">
-                                  {formatValue(msg.text[column][rowIndex])}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )
+                {insights && (
+                  <div className="p-4 mt-3 bg-gray-800 rounded-lg">
+                    <h2 className="text-lg font-semibold text-yellow-400">Business Insights:</h2>
+                    <p className="mt-2 text-white whitespace-pre-line">{insights}</p>
+                  </div>
+                )}
+              </div>
             ) : (
               msg.sender === "bot" && (
                 <div className="p-3 bg-gray-700 rounded-lg mt-2">
@@ -170,6 +140,22 @@ const Home = () => {
           Send
         </button>
       </div>
+
+      {/* Dialog Box for Invalid Message */}
+      {showDialog && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-gray-800 p-6 rounded-lg text-white shadow-lg">
+            <h2 className="text-lg font-semibold text-yellow-400">Invalid Input</h2>
+            <p className="mt-2">Please enter a valid message related to business insights.</p>
+            <button
+              className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg"
+              onClick={() => setShowDialog(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
