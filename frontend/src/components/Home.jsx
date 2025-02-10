@@ -1,12 +1,10 @@
 import React, { useState } from "react";
-import { WavyBackground } from "./ui/wavy-background";
 import { Sparkles } from "lucide-react";
 
 const Home = () => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [insights, setInsights] = useState(null);
-  const [showDialog, setShowDialog] = useState(false);
 
   const fetchBotResponse = async (question) => {
     try {
@@ -28,6 +26,55 @@ const Home = () => {
     }
   };
 
+  const fetchInsights = async (tableData) => {
+    try {
+      const response = await fetch("http://192.168.5.174:9112/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: JSON.stringify(tableData) }),
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch insights");
+
+      const data = await response.json();
+      console.log("Insights API Response:", data);
+
+      setInsights(data.insight.text);
+    } catch (error) {
+      console.error("Error fetching insights:", error);
+    }
+  };
+
+  const fetchDailyInsights = async () => {
+    try {
+      const response = await fetch("http://192.168.5.174:9112/daily_insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch daily insights");
+
+      const data = await response.json();
+      console.log("Daily Insights API Response:", data);
+
+      const dailyInsight = data.daily.text;
+
+      const newBotMessage = {
+        text: `${dailyInsight}`,
+        sender: "bot",
+      };
+
+      setMessages((prev) => [...prev, newBotMessage]);
+    } catch (error) {
+      console.error("Error fetching daily insights:", error);
+      const errorBotMessage = {
+        text: "⚠️ Failed to fetch daily insights.",
+        sender: "bot",
+      };
+      setMessages((prev) => [...prev, errorBotMessage]);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
@@ -36,22 +83,23 @@ const Home = () => {
 
     const botReply = await fetchBotResponse(input);
 
-    // Check for irrelevant responses
     if (
       botReply === "No data available." ||
-      (typeof botReply === "object" &&
-        botReply.text &&
-        botReply.text.includes("Please enter a valid message"))
+      (typeof botReply === "object" && botReply.msg === "Enter a valid question")
     ) {
-      setShowDialog(true); // Show dialog for invalid input
+      const errorBotMessage = {
+        text: "⚠️ Enter a valid question.",
+        sender: "bot",
+      };
+
+      setMessages((prev) => [...prev, errorBotMessage]);
       setInput("");
-      return; // Stop further execution
+      return;
     }
 
     const newBotResponse = { text: botReply, sender: "bot" };
     setMessages((prev) => [...prev, newBotResponse]);
 
-    // Call Insights API only when valid structured data is received
     if (typeof botReply === "object") {
       await fetchInsights(botReply);
     }
@@ -61,13 +109,23 @@ const Home = () => {
 
   return (
     <div className="relative z-30 container flex flex-col h-screen bg-transparent text-white p-5">
-      <div className="bg-black/30 backdrop-blur-sm rounded-xl mt-[-16px] p-4">
-        <div className="flex items-center justify-center gap-2">
-          <Sparkles className="w-5 h-5 text-yellow-400" />
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-red-400 to-orange-400 text-transparent bg-clip-text">
-            BI Agent
-          </h1>
-          <Sparkles className="w-5 h-5 text-yellow-400" />
+      {/* Header with Daily Insights Button and Centered BI Agent Title */}
+      <div className="relative flex items-center justify-center mb-3">
+        <button
+          className="absolute left-0 px-5 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-lg text-lg transition-transform hover:scale-105"
+          onClick={fetchDailyInsights}
+        >
+          Daily Insights
+        </button>
+
+        <div className="bg-black/30 backdrop-blur-sm rounded-xl p-4">
+          <div className="flex items-center justify-center gap-2">
+            <Sparkles className="w-5 h-5 text-yellow-400" />
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-red-400 to-orange-400 text-transparent bg-clip-text">
+              BI Agent
+            </h1>
+            <Sparkles className="w-5 h-5 text-yellow-400" />
+          </div>
         </div>
       </div>
 
@@ -82,8 +140,8 @@ const Home = () => {
 
             {msg.sender === "bot" && typeof msg.text === "object" ? (
               <div>
-                <div className="overflow-x-auto border border-gray-500 rounded-lg inline-block">
-                  <table className="bg-black bg-opacity-20 rounded-lg border-collapse">
+                <div className="overflow-x-auto max-w-full border border-gray-500 rounded-lg">
+                  <table className="min-w-full bg-black bg-opacity-20 rounded-lg border-collapse">
                     <thead>
                       <tr className="bg-red-500">
                         {Object.keys(msg.text).map((column) => (
@@ -115,7 +173,7 @@ const Home = () => {
               </div>
             ) : (
               msg.sender === "bot" && (
-                <div className="p-3 bg-gray-700 rounded-lg mt-2">
+                <div className="p-3 bg-gray-700 rounded-lg mt-2 whitespace-pre-line">
                   <strong>Bot:</strong> {msg.text}
                 </div>
               )
@@ -127,7 +185,7 @@ const Home = () => {
       <div className="flex items-center p-3 bg-gray-800 bg-opacity-50 rounded-lg mt-3">
         <input
           type="text"
-          className="flex-1 p-3 rounded-lg bg-gray-700 text-white outline-none text-lg"
+          className="flex-1 p-3 rounded-lg bg-gray-700 text-white outline-none text-lg "
           placeholder="Type a message..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -140,22 +198,6 @@ const Home = () => {
           Send
         </button>
       </div>
-
-      {/* Dialog Box for Invalid Message */}
-      {showDialog && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-gray-800 p-6 rounded-lg text-white shadow-lg">
-            <h2 className="text-lg font-semibold text-yellow-400">Invalid Input</h2>
-            <p className="mt-2">Please enter a valid message related to business insights.</p>
-            <button
-              className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg"
-              onClick={() => setShowDialog(false)}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
